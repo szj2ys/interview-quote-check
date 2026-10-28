@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interview Quote Check: an offline evidence validator</title>
+<meta name="description" content="Check whether report quotes occur exactly in their identified transcript turns. An offline Python CLI with fictional examples, tests, and clear limits.">
+<link rel="canonical" href="https://szj2ys.github.io/interview-quote-check/">
+<meta property="og:title" content="Interview Quote Check: an offline evidence validator">
+<meta property="og:description" content="A small Python tool for exact quote-to-turn checks, with no network access or transcript uploads.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://szj2ys.github.io/interview-quote-check/">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header><a href="index.html">Interview Quote Check</a><p>Offline developer utility · Python standard library</p></header>
+<main id="main">
+<p class="eyebrow">For people building or reviewing AI interview reports</p>
+<h1>Check quotes against the turn they cite.</h1>
+<p class="lede">Catch altered quotations and wrong-turn references before treating quoted text as report evidence.</p>
+<p>This small CLI checks exact text membership. It does not judge whether an answer is true, whether feedback is fair, or whether a candidate should be hired. Run it locally with Python 3.10 or newer; no API key, package installation, upload, or account is required.</p>
+<nav aria-label="Tutorial sections"><a href="#start">Run the checker</a><a href="#examples">Two worked examples</a><a href="#limits">Understand the limits</a></nav>
+
+<section id="start"><h2>Start with the synthetic examples</h2>
+<p>Download the <a href="https://github.com/szj2ys/interview-quote-check">project repository</a>, or save <a href="quote_check.py" download>quote_check.py</a> and the example files locally. All bundled scenarios are explicitly fictional teaching data. From the project folder, run:</p>
+<pre><code>python quote_check.py examples/valid.json
+python quote_check.py examples/altered-quote.json
+python -B -m unittest discover -s tests -v</code></pre>
+<p>The first command exits <code>0</code>; the second exits <code>1</code> because the quotation was changed. A mismatch is useful output, not a crash. The test command runs the supplied schema, matching, Unicode, privacy-output, and subprocess checks. See the <a href="README.md">README</a> for stdin usage and the full contract.</p>
+</section>
+
+<section><h2>Give every turn an explicit identifier</h2>
+<p>The input is one UTF-8 JSON object with exactly <code>transcript</code> and <code>evidence</code>. Both are nonempty arrays. A transcript item has <code>turn_id</code> and <code>text</code>; an evidence item has <code>turn_id</code> and <code>quote</code>. IDs must be unique in the transcript. IDs and quotes must be nonblank strings. The checker rejects duplicate IDs, unknown keys, invalid types, and empty evidence before producing quote results.</p>
+<pre><code>{
+  "transcript": [
+    {"turn_id": "answer-1", "text": "I wrote the import script."}
+  ],
+  "evidence": [
+    {"turn_id": "answer-1", "quote": "wrote the import script"}
+  ]
+}</code></pre>
+<p>Keep the original transcript and the report quote separate. If your report uses a paraphrase, translation, or ellipsis, label it as such rather than passing it off as an exact quotation. This validator intentionally does not repair text to make a quotation pass.</p>
+</section>
+
+<section id="examples"><h2>Example 1: an exact quote passes</h2>
+<p><strong>Fictional scenario:</strong> a candidate describes writing an import script, credits a colleague for reviewing retries, and then describes postponing a launch. The two quotations below preserve the original wording and cite the correct turns.</p>
+<pre><code>{
+  "transcript": [
+    {"turn_id": "answer-1", "text": "I wrote the import script. Maya reviewed the retry logic."},
+    {"turn_id": "answer-2", "text": "We postponed the launch until the duplicate records were checked."}
+  ],
+  "evidence": [
+    {"turn_id": "answer-1", "quote": "I wrote the import script."},
+    {"turn_id": "answer-2", "quote": "We postponed the launch"}
+  ]
+}</code></pre>
+<p>Run the included <a href="examples/valid.json" download>valid.json</a> fixture:</p>
+<pre><code>python quote_check.py examples/valid.json</code></pre>
+<p>Actual CLI output for that fixture, exit <code>0</code>:</p>
+<pre class="result"><code>{"status":"pass","checked":2,"matched":2,"results":[{"check_id":1,"status":"match","reason":"exact_substring"},{"check_id":2,"status":"match","reason":"exact_substring"}]}</code></pre>
+<p>The second quote is shorter than the full answer, which is allowed: it is an exact substring of the cited turn. “Pass” means these two supplied quotations match. It does not verify the candidate’s contribution or prove that shortening the answer preserved its full context.</p>
+</section>
+
+<section><h2>Example 2: a stronger claim fails</h2>
+<p><strong>Fictional scenario:</strong> a candidate said they helped review a script. A report presents them as its author. The wording is plausible, but it is not the wording in the supplied turn.</p>
+<pre><code>{
+  "transcript": [
+    {"turn_id": "answer-1", "text": "I helped review the import script."}
+  ],
+  "evidence": [
+    {"turn_id": "answer-1", "quote": "I wrote the import script."}
+  ]
+}</code></pre>
+<p>Run the included <a href="examples/altered-quote.json" download>altered-quote.json</a> fixture:</p>
+<pre><code>python quote_check.py examples/altered-quote.json</code></pre>
+<p>Actual CLI output for that fixture, exit <code>1</code>:</p>
+<pre class="result"><code>{"status":"mismatch","checked":1,"matched":0,"results":[{"check_id":1,"status":"mismatch","reason":"quote_not_in_turn"}]}</code></pre>
+<p>Find evidence item <code>1</code> in your input and inspect its source. Correct the quotation or the turn mapping; do not weaken the checker until the fabricated sentence passes. If the same quote exists in another turn, it still fails against this turn. Try <a href="examples/wrong-turn.json" download>wrong-turn.json</a> to see that boundary.</p>
+</section>
+
+<section><h2>Three exit codes, three different next steps</h2>
+<dl><dt><code>0</code> — all supplied quotes match</dt><dd>Continue to context, attribution, and coaching review. No quality or hiring judgement is implied.</dd><dt><code>1</code> — at least one mismatch</dt><dd>Inspect the indexed evidence item. <code>missing_turn</code> means its identifier was absent; <code>quote_not_in_turn</code> means the identifier existed but the text did not match.</dd><dt><code>2</code> — input cannot be checked</dt><dd>Repair the invocation, file access, UTF-8 encoding, JSON syntax, or schema. <a href="examples/malformed.json" download>Malformed JSON</a> and <a href="examples/empty-evidence.json" download>empty evidence</a> are errors, not successful reports.</dd></dl>
+<p>Output includes one-based check positions, statuses, and reasons. It does not repeat your transcript, quote text, identifiers, or file paths. Check both the exit code and the result. A missing process result must never silently become “all quotes passed.”</p>
+</section>
+
+<section><h2>Text that looks the same may still differ</h2>
+<p>Matching compares Unicode codepoints after JSON decoding. A capital letter differs from a lowercase letter. A curly apostrophe differs from a straight apostrophe. Two spaces differ from one. The accented character in <code>café</code> can also be represented as an <code>e</code> followed by a combining accent; those are different sequences. The tool performs no Unicode normalization, case folding, trimming, or fuzzy matching.</p>
+<p>Run <a href="examples/unicode.json" download>unicode.json</a>: five evidence items produce two exact matches and three mismatches, with exit <code>1</code>. This strictness helps preserve quotation fidelity. If your upstream system intentionally transforms text, retain that transformation as a separately documented step and compare against the correct original source.</p>
+</section>
+
+<section id="limits"><h2>What an exact match cannot establish</h2>
+<p>A quote can pass and still mislead. For example, <q>I led the migration</q> is a substring of <q>I never said I led the migration.</q> The checker has no understanding of negation, completeness, speaker identity, consent, or whether an answer is true. A fabricated transcript can contain a fabricated quote. A transcription error can be quoted perfectly. Read the surrounding turn, confirm its provenance, and compare disputed wording with authorised source audio when available.</p>
+<p>The <a href="https://makeinterview.com/en/report/sample">MakeInterview sample report</a> illustrates quotations presented alongside feedback. It labels its session as demo material and explains a speech-recognition mistake. That makes it a useful example of why text membership and audio accuracy are different questions. This link is contextual reading, not an endorsement, a validation result, or a claim that this utility has checked that report.</p>
+<p>The utility reads the supplied document into memory and makes no network calls, analytics requests, or storage writes. Your operating system, shell, backups, or caller may still retain data. Avoid putting private transcript text directly in shell commands. This small tool does not cap input size or provide a hardened upload service; use appropriately sized local files.</p>
+</section>
+
+<section><h2>Keep the project offline</h2>
+<p>The CLI, fixtures, tests, and this documentation work without an internet connection. The repository and hosted tutorial are two views of the same resource. There is no browser upload box or automatic connection to a live interview service. Inspect <a href="quote_check.py">the source</a> and <a href="tests/test_quote_check.py">the tests</a> before integrating the checker into your own report pipeline.</p>
+</section>
+</main>
+<footer><p>Published by the MakeInterview/MockLive team. This is an independent offline utility; the separate live AI interview service is currently paused.</p><p>All bundled examples are fictional teaching data. Exact matching does not assess coaching correctness or predict hiring outcomes.</p><a href="#main">Back to the tutorial</a></footer>
+</body></html>

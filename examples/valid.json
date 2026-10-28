@@ -1,0 +1,10 @@
+{
+  "transcript": [
+    {"turn_id": "answer-1", "text": "I wrote the import script. Maya reviewed the retry logic."},
+    {"turn_id": "answer-2", "text": "We postponed the launch until the duplicate records were checked."}
+  ],
+  "evidence": [
+    {"turn_id": "answer-1", "quote": "I wrote the import script."},
+    {"turn_id": "answer-2", "quote": "We postponed the launch"}
+  ]
+}

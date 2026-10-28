@@ -1,0 +1,12 @@
+{
+  "transcript": [
+    {"turn_id": "answer-1", "text": "I discussed café access. I’m sure. We used  two spaces."}
+  ],
+  "evidence": [
+    {"turn_id": "answer-1", "quote": "café"},
+    {"turn_id": "answer-1", "quote": "café"},
+    {"turn_id": "answer-1", "quote": "I'm sure."},
+    {"turn_id": "answer-1", "quote": "We used two spaces."},
+    {"turn_id": "answer-1", "quote": "I’m sure."}
+  ]
+}
